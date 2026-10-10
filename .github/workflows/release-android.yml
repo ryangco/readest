@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android:
@@ -35,7 +35,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           key: android-cargo
@@ -65,12 +65,17 @@ jobs:
           popd
 
           apk=src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
-          pnpm tauri android build
-          cp $apk Readest_universal.apk
           pnpm tauri android build -t aarch64
           cp $apk Readest_arm64.apk
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: readest-android
-          path: apps/readest-app/Readest_*.apk
+      - name: publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./apps/readest-app/package.json').version")
+          tag="v${version}"
+          apk="apps/readest-app/Readest_${version}_arm64.apk"
+          mv apps/readest-app/Readest_arm64.apk "$apk"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" --title "$tag" --notes "Android build" --target "$GITHUB_SHA"
+          gh release upload "$tag" "$apk" --clobber
