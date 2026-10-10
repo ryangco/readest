@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React from 'react';
 import { IoIosList as TOCIcon } from 'react-icons/io';
+import { TbPlayerPlay } from 'react-icons/tb';
 import { RxSlider as SliderIcon } from 'react-icons/rx';
 import { RiFontFamily as FontIcon } from 'react-icons/ri';
 import { PiSun as ColorIcon } from 'react-icons/pi';
@@ -21,6 +22,7 @@ interface NavigationBarProps {
   // Keeps the row clear of iPhone Duo's side status strip (#6307).
   insetStyle?: React.CSSProperties;
   onSetActionTab: (tab: string) => void;
+  onStartRSVP: () => void;
 }
 
 export const NavigationBar: React.FC<NavigationBarProps> = ({
@@ -30,6 +32,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   forceMobileLayout,
   insetStyle,
   onSetActionTab,
+  onStartRSVP,
 }) => {
   const isMobile = forceMobileLayout || window.innerWidth < 640 || window.innerHeight < 640;
   const _ = useTranslation();
@@ -63,6 +66,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           onClick={() => onSetActionTab('toc')}
         />
       )}
+      <Button icon={<TbPlayerPlay />} label={_('Speed Read')} onClick={onStartRSVP} />
       <Button
         label={_('Color')}
         icon={<ColorIcon className={clsx(actionTab === 'color' && 'text-blue-500')} />}

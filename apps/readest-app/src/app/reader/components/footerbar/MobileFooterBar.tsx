@@ -7,6 +7,7 @@ import { NavigationPanel } from './NavigationPanel';
 import { FontLayoutPanel } from './FontLayoutPanel';
 import { ColorPanel } from './ColorPanel';
 import { NavigationBar } from './NavigationBar';
+import { eventDispatcher } from '@/utils/event';
 
 const MobileFooterBar: React.FC<FooterBarChildProps> = ({
   bookKey,
@@ -27,6 +28,9 @@ const MobileFooterBar: React.FC<FooterBarChildProps> = ({
   const panelInsetStyle = getHorizontalInsetStyle(gridInsets, isIPhoneDuo, 16);
   const barInsetStyle = getHorizontalInsetStyle(gridInsets, isIPhoneDuo, 32);
   const bottomOffset = isMobile ? `${gridInsets.bottom * 0.33 + 64}px` : '64px';
+  const handleStartRSVP = () => {
+    eventDispatcher.dispatch('rsvp-start', { bookKey });
+  };
 
   return (
     <>
@@ -62,6 +66,7 @@ const MobileFooterBar: React.FC<FooterBarChildProps> = ({
         forceMobileLayout={forceMobileLayout}
         insetStyle={barInsetStyle}
         onSetActionTab={onSetActionTab!}
+        onStartRSVP={handleStartRSVP}
       />
     </>
   );
