@@ -34,6 +34,7 @@ import type { VocabularyCapture } from '@/app/reader/components/annotator/Dictio
 import { sentenceAt } from '@/services/vocabulary/sentence';
 import TTSFollowIndicator, { TtsSyncStatus } from '@/app/reader/components/tts/TTSFollowIndicator';
 import { Toggle } from '@/components/primitives/toggle';
+import { eventDispatcher } from '@/utils/event';
 
 interface FlatChapter {
   label: string;
@@ -47,6 +48,10 @@ interface ContextWordProps {
   isCurrent: boolean;
   currentRef?: React.Ref<HTMLSpanElement>;
   orpColor?: string;
+  paragraphStart?: boolean;
+  lineBreakBefore?: boolean;
+  italic?: boolean;
+  bold?: boolean;
 }
 
 const ContextWord = React.memo(function ContextWord({
@@ -55,19 +60,36 @@ const ContextWord = React.memo(function ContextWord({
   isCurrent,
   currentRef,
   orpColor,
+  paragraphStart,
+  lineBreakBefore,
+  italic,
+  bold,
 }: ContextWordProps) {
   return (
-    <span
-      ref={currentRef}
-      data-rsvp-word-button=''
-      data-rsvp-word-index={wordIndex}
-      role={isCurrent ? undefined : 'button'}
-      tabIndex={isCurrent ? undefined : 0}
-      className={isCurrent ? undefined : 'cursor-pointer opacity-70 hover:opacity-100'}
-      style={isCurrent && orpColor ? { color: orpColor } : undefined}
-    >
-      {text}{' '}
-    </span>
+    <>
+      {lineBreakBefore && !paragraphStart && <br />}
+      {paragraphStart && wordIndex > 0 && (
+        <>
+          <span className='block h-2' aria-hidden='true' />
+          <span className='inline-block w-6' aria-hidden='true' />
+        </>
+      )}
+      <span
+        ref={currentRef}
+        data-rsvp-word-button=''
+        data-rsvp-word-index={wordIndex}
+        role={isCurrent ? undefined : 'button'}
+        tabIndex={isCurrent ? undefined : 0}
+        className={clsx(
+          !isCurrent && 'cursor-pointer opacity-70 hover:opacity-100',
+          italic && 'italic',
+          bold && 'font-bold',
+        )}
+        style={isCurrent && orpColor ? { color: orpColor } : undefined}
+      >
+        {text}{' '}
+      </span>
+    </>
   );
 });
 
@@ -429,7 +451,10 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
 
     // Use capture phase to handle events before they reach dropdown/select elements
     document.addEventListener('keydown', handleKeyboard, { capture: true });
-    return () => document.removeEventListener('keydown', handleKeyboard, { capture: true });
+    return () =>
+      document.removeEventListener('keydown', handleKeyboard, {
+        capture: true,
+      });
   }, [state.active, controller, onClose, dict, isSettingsDialogOpen]);
 
   const effectiveChapterHref = currentChapterHref;
@@ -485,7 +510,10 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
   // selection out from under them (#4475).
   useEffect(() => {
     if (contextCollapsed || lookup || dict) return;
-    contextWordRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    contextWordRef.current?.scrollIntoView({
+      block: 'nearest',
+      behavior: 'instant',
+    });
   }, [state.currentIndex, contextCollapsed, lookup, dict]);
 
   useEffect(() => {
@@ -592,10 +620,17 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
 
     if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY)) {
       if (deltaX > 0) {
-        controller.decreaseSpeed();
-      } else {
         controller.increaseSpeed();
+      } else {
+        controller.decreaseSpeed();
       }
+      return;
+    }
+
+    if (Math.abs(deltaY) > SWIPE_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX)) {
+      if (deltaY < 0 && !contextCollapsed)
+        toggleContext(); // swipe up: collapse
+      else if (deltaY > 0 && contextCollapsed) toggleContext(); // swipe down: expand
       return;
     }
 
@@ -668,7 +703,12 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
     // lower half of the screen is too short. The whole-window rect keeps the
     // popup clamped on-screen (the overlay root sits at the viewport origin).
     const rect = lookup.range.getBoundingClientRect();
-    const windowRect = { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const windowRect = {
+      top: 0,
+      left: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight,
+    };
     const popupWidth = Math.min(DICT_POPUP_MAX_WIDTH, window.innerWidth - 2 * DICT_POPUP_PADDING);
     const popupHeight = Math.min(
       DICT_POPUP_MAX_HEIGHT,
@@ -677,7 +717,10 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
     const dir: Position['dir'] =
       window.innerHeight - rect.bottom > popupHeight + DICT_POPUP_PADDING ? 'down' : 'up';
     const trianglePosition: Position = {
-      point: { x: rect.left + rect.width / 2, y: dir === 'down' ? rect.bottom + 6 : rect.top - 12 },
+      point: {
+        x: rect.left + rect.width / 2,
+        y: dir === 'down' ? rect.bottom + 6 : rect.top - 12,
+      },
       dir,
     };
     const position = getPopupPosition(
@@ -709,6 +752,19 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
     } catch {
       /* ignore */
     }
+  }, []);
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const handleKeyDown = (event: CustomEvent): boolean => {
+      if (event.detail?.keyName !== 'Back') return false;
+      onCloseRef.current();
+      return true;
+    };
+    eventDispatcher.onSync('native-key-down', handleKeyDown);
+    return () => eventDispatcher.offSync('native-key-down', handleKeyDown);
   }, []);
 
   const handleContextKeyDown = useCallback(
@@ -1051,6 +1107,10 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
                     isCurrent={isCurrent}
                     currentRef={isCurrent ? contextWordRef : undefined}
                     orpColor={isCurrent ? effectiveOrpColor : undefined}
+                    paragraphStart={w.paragraphStart}
+                    lineBreakBefore={w.lineBreakBefore}
+                    italic={w.italic}
+                    bold={w.bold}
                   />
                 );
               })}
@@ -1189,11 +1249,17 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
           >
             <div
               className={`absolute left-0 top-0 h-full rounded-sm ${isProgressBarDragging ? '' : 'transition-[width] duration-100'}`}
-              style={{ width: `${state.progress}%`, backgroundColor: accentColor }}
+              style={{
+                width: `${state.progress}%`,
+                backgroundColor: accentColor,
+              }}
             />
             <div
               className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-sm ${isProgressBarDragging ? '' : 'transition-[left] duration-100'}`}
-              style={{ left: `${state.progress}%`, backgroundColor: accentColor }}
+              style={{
+                left: `${state.progress}%`,
+                backgroundColor: accentColor,
+              }}
             />
           </div>
         </div>
