@@ -365,9 +365,9 @@ const RSVPControl = forwardRef<RSVPControlHandle, RSVPControlProps>(function RSV
   // Listen for RSVP start events
   useEffect(() => {
     const handleRSVPStart = (event: CustomEvent) => {
-      const { bookKey: rsvpBookKey, selectionText } = event.detail;
+      const { bookKey: rsvpBookKey, selectionText, resume } = event.detail;
       if (bookKey !== rsvpBookKey) return;
-      handleStart(selectionText);
+      handleStart(selectionText, resume);
     };
 
     const handleRSVPStop = (event: CustomEvent) => {
@@ -656,7 +656,7 @@ const RSVPControl = forwardRef<RSVPControlHandle, RSVPControlProps>(function RSV
   }, [ttsSyncStatus, _]);
 
   const handleStart = useCallback(
-    (selectionText?: string) => {
+    (selectionText?: string, resume?: boolean) => {
       // RSVP can be started from the menu or the keyboard shortcut (#4473);
       // ignore a repeat trigger while a session is already active so it does
       // not re-open the start dialog over the running overlay.
@@ -740,6 +740,13 @@ const RSVPControl = forwardRef<RSVPControlHandle, RSVPControlProps>(function RSV
         // immediately (externally driven, no countdown) and let RSVP lock onto
         // the spoken word.
         if (ttsSessionActive) {
+          controller.startFromCurrentPosition();
+          setIsActive(true);
+          return;
+        }
+
+        // Start on selection if resume is true and a selection exists
+        if (resume) {
           controller.startFromCurrentPosition();
           setIsActive(true);
           return;
