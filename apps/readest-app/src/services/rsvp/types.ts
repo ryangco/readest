@@ -5,6 +5,10 @@ export interface RsvpWord {
   range?: Range;
   docIndex?: number;
   cfi?: string; // Canonical Fragment Identifier for precise position tracking
+  paragraphStart?: boolean; // first word after a block boundary
+  lineBreakBefore?: boolean; // a <br> precedes this word
+  italic?: boolean;
+  bold?: boolean;
 }
 
 export interface RsvpState {
