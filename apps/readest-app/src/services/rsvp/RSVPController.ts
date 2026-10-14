@@ -1199,6 +1199,40 @@ export class RSVPController extends EventTarget {
     const excludeTags = new Set(['SCRIPT', 'STYLE', 'NAV', 'HEADER', 'FOOTER', 'ASIDE']);
     const words: RsvpWord[] = [];
 
+    const blockTags = new Set([
+      'P',
+      'DIV',
+      'LI',
+      'H1',
+      'H2',
+      'H3',
+      'H4',
+      'H5',
+      'H6',
+      'BLOCKQUOTE',
+      'PRE',
+      'SECTION',
+      'ARTICLE',
+      'TR',
+    ]);
+    let pendingParagraph = false;
+    let pendingLineBreak = false;
+    let italicDepth = 0;
+    let boldDepth = 0;
+    const italicTags = new Set(['EM', 'I', 'CITE']);
+    const boldTags = new Set(['STRONG', 'B']);
+    const takeFlags = () => {
+      const flags = {
+        paragraphStart: pendingParagraph || undefined,
+        lineBreakBefore: pendingLineBreak || undefined,
+        italic: italicDepth > 0 || undefined,
+        bold: boldDepth > 0 || undefined,
+      };
+      pendingParagraph = false;
+      pendingLineBreak = false;
+      return flags;
+    };
+
     const walk = (node: Node): void => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || '';
@@ -1221,6 +1255,7 @@ export class RSVPController extends EventTarget {
               text: word,
               orpIndex: this.calculateORP(word),
               pauseMultiplier: this.getPauseMultiplier(word),
+              ...takeFlags(),
               range,
               docIndex,
             });
@@ -1229,6 +1264,7 @@ export class RSVPController extends EventTarget {
               text: word,
               orpIndex: this.calculateORP(word),
               pauseMultiplier: this.getPauseMultiplier(word),
+              ...takeFlags(),
             });
           }
 
@@ -1245,9 +1281,25 @@ export class RSVPController extends EventTarget {
       const style = el.ownerDocument.defaultView?.getComputedStyle(el);
       if (style?.display === 'none' || style?.visibility === 'hidden') return;
 
+      const tag = el.tagName.toUpperCase();
+      const isBlock = blockTags.has(tag);
+      if (isBlock) pendingParagraph = true;
+      if (tag === 'BR') pendingLineBreak = true;
+
+      const isItalic = italicTags.has(tag) || style?.fontStyle === 'italic';
+      const isBold = boldTags.has(tag) || Number.parseInt(style?.fontWeight ?? '400', 10) >= 600;
+      if (isItalic) italicDepth++;
+      if (isBold) boldDepth++;
+
       for (const child of Array.from(el.childNodes)) {
         walk(child);
       }
+
+      if (isItalic) italicDepth--;
+      if (isBold) boldDepth--;
+
+      // text after a closing block starts a new paragraph too
+      if (isBlock) pendingParagraph = true;
     };
 
     walk(element);
